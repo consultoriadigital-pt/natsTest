@@ -118,16 +118,17 @@ class Client {
   }
 
   Future<void> _newHeartBeat() async {
-    Timer.periodic(Duration(seconds: 5), (timer) async {
+    Timer.periodic(Duration(seconds: 10), (timer) async {
       try {
-        bool pingTest = await ping();
-        print("resultado ping");
-        if (pingTest == false) {
-          print("reconnect");
-          await _reconnect();
-        }
+        await _natsClient.tcpConnect(
+          host,
+          port: port,
+          connectOption: connectOption,
+          timeout: 5,
+          retry: false,
+        );
       } catch (e) {
-        print('heartBeat retry $e');
+        print("Stan HeartBeat connection periodic");
       }
     });
   }
