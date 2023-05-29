@@ -150,9 +150,7 @@ class Client {
 
           _connected = true;
         }
-      } catch (e) {
-        print("HeartBeat connection periodic $e");
-      }
+      } catch (e) {}
     });
   }
 
@@ -197,16 +195,8 @@ class Client {
     return false;
   }
 
-  Future<void> disconnect() async {
-    _natsClient.close();
-    if (_onDisconnect != null && _connected) {
-      _onDisconnect!();
-    }
-    _connected = false;
-  }
-
   Future<void> _disconnect() async {
-    _natsClient.close();
+    await _natsClient.close();
     if (_onDisconnect != null && _connected) {
       _onDisconnect!();
     }
