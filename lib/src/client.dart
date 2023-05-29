@@ -127,8 +127,31 @@ class Client {
           timeout: 5,
           retry: false,
         );
+        // Connecting to Streaming Server
+        if (_natsClient.status == nats.Status.connected) {
+          // Generante new clientID for reconnection
+          _clientID = Uuid().v4();
+          ConnectRequest connectRequest = ConnectRequest()
+            ..clientID = this.clientID
+            ..heartbeatInbox = this.connectionID
+            ..connID = this.connectionIDAscii
+            ..protocol = 1
+            ..pingInterval = pingInterval
+            ..pingMaxOut = this.pingMaxAttempts;
+
+          // Connecting to Streaming Server
+          _connectResponse =
+              ConnectResponse.fromBuffer((await _natsClient.request('_STAN.discover.$clusterID', connectRequest.writeToBuffer())).data);
+          unawaited(pingResponseWatchdog());
+
+          if (_onConnect != null) {
+            _onConnect!();
+          }
+
+          _connected = true;
+        }
       } catch (e) {
-        print("Stan HeartBeat connection periodic");
+        print("HeartBeat connection periodic $e");
       }
     });
   }
