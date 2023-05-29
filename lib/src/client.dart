@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:dart_nats/dart_nats.dart' as nats;
@@ -43,7 +44,7 @@ class Client {
   String host = '';
   int port = 4222;
   bool retryReconnect = true;
-  int retryInterval = 5;
+  int retryInterval = 15;
   int pingMaxAttempts = 60;
   int failPings = 0;
   int pingInterval = 10;
@@ -110,7 +111,25 @@ class Client {
       this.timeout = timeout;
     }
 
-    return await _connect();
+    bool connected = await _connect();
+    await _newHeartBeat();
+
+    return connected;
+  }
+
+  Future<void> _newHeartBeat() async {
+    Timer.periodic(Duration(seconds: 5), (timer) async {
+      try {
+        bool pingTest = await ping();
+        print("resultado ping");
+        if (pingTest == false) {
+          print("reconnect");
+          await _reconnect();
+        }
+      } catch (e) {
+        print('heartBeat retry $e');
+      }
+    });
   }
 
   Future<bool> _connect() async {
@@ -125,6 +144,7 @@ class Client {
       );
     } catch (e) {
       print('Connecting Error: [$e]');
+      unawaited(_reconnect());
     }
 
     if (_natsClient.status == nats.Status.connected) {
@@ -153,12 +173,26 @@ class Client {
     return false;
   }
 
+  Future<void> disconnect() async {
+    _natsClient.close();
+    if (_onDisconnect != null && _connected) {
+      _onDisconnect!();
+    }
+    _connected = false;
+  }
+
   Future<void> _disconnect() async {
     _natsClient.close();
     if (_onDisconnect != null && _connected) {
       _onDisconnect!();
     }
     _connected = false;
+  }
+
+  Future<void> _reconnect() async {
+    await _disconnect();
+    await Future.delayed(Duration(seconds: retryInterval), () => {});
+    await _connect();
   }
 
   Future<void> pingResponseWatchdog() async {
@@ -177,9 +211,6 @@ class Client {
   }
 
   Future<bool> ping() async {
-    if (!_connected || _natsClient.status != nats.Status.connected) {
-      return false;
-    }
     Ping ping = Ping()..connID = connectionIDAscii;
     try {
       nats.Message message = await _natsClient.request(_connectResponse!.pingRequests, ping.writeToBuffer());
@@ -228,7 +259,7 @@ class Client {
     Int64? startTimeDelta,
   }) async {
     try {
-      // Listen Inbox before subscribing
+      // Listen Inbox before subscribinga
       final String inbox = '${subject}_${queueGroup ?? ''}_${Uuid().v4()}';
       final natsSubscription = _natsClient.sub(inbox, queueGroup: queueGroup);
 
